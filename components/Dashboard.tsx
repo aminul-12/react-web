@@ -38,13 +38,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate, onUpd
     }
   });
 
-  // Clear toasts automatically
   useEffect(() => {
     if (successMessage || updateError) {
       const timer = setTimeout(() => {
         setSuccessMessage('');
         setUpdateError('');
-      }, 5000);
+      }, 6000);
       return () => clearTimeout(timer);
     }
   }, [successMessage, updateError]);
@@ -74,20 +73,26 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate, onUpd
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Start loading state
     setUploadProgress(prev => ({ ...prev, [type]: true }));
     setSuccessMessage('');
     setUpdateError('');
 
     try {
       const publicUrl = await storageService.uploadDocument(user.id, file, type);
+      
+      // Update local state and parent state
       const updatedUser = { ...user, [`${type}Url`]: publicUrl };
       onUpdateUser(updatedUser as User);
-      setSuccessMessage(`${type.charAt(0).toUpperCase() + type.slice(1)} uploaded successfully!`);
+      
+      setSuccessMessage(`${type.charAt(0).toUpperCase() + type.slice(1)} synchronized successfully!`);
     } catch (err: any) {
-      setUpdateError(err.message || `Upload failed for ${type}`);
+      console.error(`Error in ${type} upload:`, err);
+      setUpdateError(err.message || `The upload for ${type} failed. Please check your connection.`);
     } finally {
+      // CRITICAL: Always reset loading state
       setUploadProgress(prev => ({ ...prev, [type]: false }));
-      // Reset input value to allow re-uploading the same file
+      // Clear input so user can try the same file again if it failed
       e.target.value = '';
     }
   };
@@ -119,11 +124,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate, onUpd
       });
       if (updatedUser) {
         onUpdateUser(updatedUser);
-        setSuccessMessage('Profile data synchronized successfully!');
+        setSuccessMessage('Profile information updated in cloud.');
         setIsEditModalOpen(false);
       }
     } catch (err: any) {
-      setUpdateError(err.message || 'Failed to update record.');
+      setUpdateError(err.message || 'Failed to sync data with server.');
     } finally {
       setIsUpdating(false);
     }
@@ -133,7 +138,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate, onUpd
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
         
-        {/* Professional Notification Toasts */}
+        {/* Toast Notifications */}
         <div className="fixed top-24 right-6 z-[200] space-y-3 pointer-events-none">
           {successMessage && (
             <div className="bg-[#002B49] text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center space-x-3 animate-slideInRight pointer-events-auto border border-blue-400/30">
@@ -157,15 +162,20 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate, onUpd
           <div className="flex items-center space-x-6">
             <div className="relative group">
               <div className="w-24 h-24 bg-gradient-to-br from-blue-600 to-blue-800 rounded-[2.5rem] overflow-hidden shadow-2xl border-4 border-white flex items-center justify-center transition-transform hover:scale-105">
-                {user.avatarUrl ? (
+                {uploadProgress.avatar ? (
+                   <div className="flex flex-col items-center">
+                      <i className="fas fa-spinner fa-spin text-2xl text-white mb-2"></i>
+                      <span className="text-[8px] font-black uppercase text-blue-200">Processing</span>
+                   </div>
+                ) : user.avatarUrl ? (
                   <img src={user.avatarUrl} className="w-full h-full object-cover" />
                 ) : (
                   <span className="text-4xl font-black text-white">{user.name.charAt(0)}</span>
                 )}
               </div>
               <label className="absolute -bottom-2 -right-2 w-10 h-10 bg-[#002B49] text-white rounded-full flex items-center justify-center cursor-pointer shadow-lg hover:scale-110 transition-all border-4 border-white group">
-                <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, 'avatar')} />
-                {uploadProgress.avatar ? <i className="fas fa-spinner fa-spin text-sm"></i> : <i className="fas fa-camera text-sm"></i>}
+                <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, 'avatar')} disabled={uploadProgress.avatar} />
+                {uploadProgress.avatar ? <i className="fas fa-circle-notch fa-spin text-sm"></i> : <i className="fas fa-camera text-sm"></i>}
               </label>
             </div>
             <div>
@@ -220,8 +230,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate, onUpd
                 ) : (
                   <p className="text-xs text-gray-400 mb-4">Official scanned copy required</p>
                 )}
-                <label className="cursor-pointer bg-[#002B49] text-white px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-blue-600 transition-all shadow-md">
-                  <input type="file" className="hidden" accept=".pdf,image/*" onChange={(e) => handleFileUpload(e, 'passport')} />
+                <label className={`cursor-pointer bg-[#002B49] text-white px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-blue-600 transition-all shadow-md ${uploadProgress.passport ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                  <input type="file" className="hidden" accept=".pdf,image/*" onChange={(e) => handleFileUpload(e, 'passport')} disabled={uploadProgress.passport} />
                   {uploadProgress.passport ? 'Uploading...' : (user.passportUrl ? 'Replace Document' : 'Upload Passport')}
                 </label>
               </div>
@@ -242,8 +252,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate, onUpd
                 ) : (
                   <p className="text-xs text-gray-400 mb-4">HSC or Degree marksheet</p>
                 )}
-                <label className="cursor-pointer bg-[#002B49] text-white px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-green-600 transition-all shadow-md">
-                  <input type="file" className="hidden" accept=".pdf,image/*" onChange={(e) => handleFileUpload(e, 'transcript')} />
+                <label className={`cursor-pointer bg-[#002B49] text-white px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-green-600 transition-all shadow-md ${uploadProgress.transcript ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                  <input type="file" className="hidden" accept=".pdf,image/*" onChange={(e) => handleFileUpload(e, 'transcript')} disabled={uploadProgress.transcript} />
                   {uploadProgress.transcript ? 'Uploading...' : (user.transcriptUrl ? 'Replace Document' : 'Upload Transcript')}
                 </label>
               </div>
