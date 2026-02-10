@@ -48,6 +48,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate, onUpd
     return Math.min(score, 100);
   };
 
+  // Fixed: Added await keyword to correctly handle the async call to updateProfile
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsUpdating(true);
@@ -61,7 +62,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigate, onUpd
       passport: formData.passport
     };
 
-    const updatedUser = authService.updateProfile(updatePayload);
+    const updatedUser = await authService.updateProfile(updatePayload);
     if (updatedUser) {
       onUpdateUser(updatedUser);
       setIsEditModalOpen(false);

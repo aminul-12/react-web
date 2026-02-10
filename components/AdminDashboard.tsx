@@ -2,42 +2,67 @@
 import React, { useState, useEffect } from 'react';
 import { ConsultationBooking, TeamMember } from '../types';
 import { teamService } from '../services/teamService';
+import { leadService } from '../services/leadService';
 
 const AdminDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'leads' | 'team'>('leads');
-  const [bookings, setBookings] = useState<ConsultationBooking[]>([
-    { id: '1', studentName: 'Imran Ahmed', email: 'imran@example.com', phone: '01712345678', targetCountry: 'UK', status: 'pending', date: '2024-03-25' },
-    { id: '2', studentName: 'Fariha Jannat', email: 'fariha@example.com', phone: '01887654321', targetCountry: 'Canada', status: 'contacted', date: '2024-03-24' },
-  ]);
-  
+  const [bookings, setBookings] = useState<ConsultationBooking[]>([]);
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [editingMember, setEditingMember] = useState<Partial<TeamMember> | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    setTeam(teamService.getMembers());
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        const [members, leads] = await Promise.all([
+          teamService.getMembers(),
+          leadService.getLeads()
+        ]);
+        setTeam(members);
+        setBookings(leads);
+      } catch (err) {
+        console.error('Fetch error:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
   }, []);
 
-  const updateStatus = (id: string, newStatus: ConsultationBooking['status']) => {
-    setBookings(prev => prev.map(b => b.id === id ? { ...b, status: newStatus } : b));
+  const updateStatus = async (id: string, newStatus: ConsultationBooking['status']) => {
+    try {
+      await leadService.updateLeadStatus(id, newStatus);
+      setBookings(prev => prev.map(b => b.id === id ? { ...b, status: newStatus } : b));
+    } catch (err) {
+      console.error('Update status failed:', err);
+    }
   };
 
-  const handleSaveTeam = (e: React.FormEvent) => {
+  const handleSaveTeam = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingMember) return;
-    
-    if (editingMember.id) {
-      teamService.updateMember(editingMember.id, editingMember);
-    } else {
-      teamService.addMember(editingMember as TeamMember);
+    setIsLoading(true);
+    try {
+      if (editingMember.id) {
+        await teamService.updateMember(editingMember.id, editingMember);
+      } else {
+        await teamService.addMember(editingMember as TeamMember);
+      }
+      const updatedMembers = await teamService.getMembers();
+      setTeam(updatedMembers);
+      setEditingMember(null);
+    } catch (err) {
+      console.error('Save failed:', err);
+    } finally {
+      setIsLoading(false);
     }
-    setTeam(teamService.getMembers());
-    setEditingMember(null);
   };
 
-  const handleDeleteMember = (id: string) => {
-    if (window.confirm('Are you sure you want to remove this team member?')) {
-      teamService.deleteMember(id);
-      setTeam(teamService.getMembers());
+  const handleDeleteMember = async (id: string) => {
+    if (window.confirm('Remove this team member?')) {
+      await teamService.deleteMember(id);
+      setTeam(prev => prev.filter(m => m.id !== id));
     }
   };
 
@@ -69,42 +94,50 @@ const AdminDashboard: React.FC = () => {
         {activeTab === 'leads' ? (
           <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-gray-50 border-b border-gray-100">
-                  <tr>
-                    <th className="px-6 py-4 font-black uppercase tracking-widest text-[10px] text-gray-400">Student Details</th>
-                    <th className="px-6 py-4 font-black uppercase tracking-widest text-[10px] text-gray-400">Destination</th>
-                    <th className="px-6 py-4 font-black uppercase tracking-widest text-[10px] text-gray-400">Status</th>
-                    <th className="px-6 py-4 font-black uppercase tracking-widest text-[10px] text-gray-400 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {bookings.map(booking => (
-                    <tr key={booking.id} className="hover:bg-gray-50 transition-all">
-                      <td className="px-6 py-5">
-                        <div className="flex items-center">
-                          <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center font-bold mr-3">{booking.studentName.charAt(0)}</div>
-                          <div>
-                            <div className="font-bold text-gray-900">{booking.studentName}</div>
-                            <div className="text-xs text-gray-400">{booking.email}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-5">
-                        <span className="bg-gray-100 px-3 py-1 rounded-lg font-bold text-gray-600">{booking.targetCountry}</span>
-                      </td>
-                      <td className="px-6 py-5">
-                        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${booking.status === 'pending' ? 'bg-orange-50 text-orange-600 border-orange-100' : 'bg-green-50 text-green-600 border-green-100'}`}>
-                          {booking.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-5 text-right">
-                        <button onClick={() => updateStatus(booking.id, 'closed')} className="text-blue-600 hover:text-blue-800 p-2"><i className="fas fa-check"></i></button>
-                      </td>
+              {isLoading && bookings.length === 0 ? (
+                <div className="p-20 text-center text-gray-400 font-bold uppercase tracking-widest animate-pulse">Loading Leads...</div>
+              ) : (
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-gray-50 border-b border-gray-100">
+                    <tr>
+                      <th className="px-6 py-4 font-black uppercase tracking-widest text-[10px] text-gray-400">Student Details</th>
+                      <th className="px-6 py-4 font-black uppercase tracking-widest text-[10px] text-gray-400">Destination</th>
+                      <th className="px-6 py-4 font-black uppercase tracking-widest text-[10px] text-gray-400">Status</th>
+                      <th className="px-6 py-4 font-black uppercase tracking-widest text-[10px] text-gray-400 text-right">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {bookings.map(booking => (
+                      <tr key={booking.id} className="hover:bg-gray-50 transition-all">
+                        <td className="px-6 py-5">
+                          <div className="flex items-center">
+                            <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center font-bold mr-3">{booking.studentName.charAt(0)}</div>
+                            <div>
+                              <div className="font-bold text-gray-900">{booking.studentName}</div>
+                              <div className="text-xs text-gray-400">{booking.email} | {booking.phone}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-5">
+                          <span className="bg-gray-100 px-3 py-1 rounded-lg font-bold text-gray-600">{booking.targetCountry}</span>
+                        </td>
+                        <td className="px-6 py-5">
+                          <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${
+                            booking.status === 'pending' ? 'bg-orange-50 text-orange-600 border-orange-100' : 
+                            booking.status === 'contacted' ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-green-50 text-green-600 border-green-100'
+                          }`}>
+                            {booking.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-5 text-right space-x-2">
+                          <button onClick={() => updateStatus(booking.id, 'contacted')} className="text-blue-600 hover:text-blue-800 p-2" title="Mark as Contacted"><i className="fas fa-phone"></i></button>
+                          <button onClick={() => updateStatus(booking.id, 'closed')} className="text-green-600 hover:text-green-800 p-2" title="Mark as Closed"><i className="fas fa-check"></i></button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
         ) : (
@@ -123,69 +156,41 @@ const AdminDashboard: React.FC = () => {
               <div className="bg-white p-8 rounded-3xl shadow-xl border border-blue-100 animate-fadeIn">
                 <form onSubmit={handleSaveTeam} className="grid md:grid-cols-2 gap-6">
                   <div className="space-y-4">
-                    <div>
-                      <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Full Name</label>
-                      <input 
-                        type="text" required
-                        value={editingMember.name}
-                        onChange={(e) => setEditingMember({ ...editingMember, name: e.target.value })}
-                        className="w-full mt-1 p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Designation</label>
-                      <input 
-                        type="text" required
-                        value={editingMember.designation}
-                        onChange={(e) => setEditingMember({ ...editingMember, designation: e.target.value })}
-                        className="w-full mt-1 p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Bio / Description</label>
-                      <textarea 
-                        required rows={3}
-                        value={editingMember.bio}
-                        onChange={(e) => setEditingMember({ ...editingMember, bio: e.target.value })}
-                        className="w-full mt-1 p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
-                      />
-                    </div>
+                    <input 
+                      type="text" required
+                      value={editingMember.name}
+                      placeholder="Name"
+                      onChange={(e) => setEditingMember({ ...editingMember, name: e.target.value })}
+                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none"
+                    />
+                    <input 
+                      type="text" required
+                      value={editingMember.designation}
+                      placeholder="Designation"
+                      onChange={(e) => setEditingMember({ ...editingMember, designation: e.target.value })}
+                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none"
+                    />
+                    <textarea 
+                      required rows={3}
+                      value={editingMember.bio}
+                      placeholder="Bio"
+                      onChange={(e) => setEditingMember({ ...editingMember, bio: e.target.value })}
+                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none"
+                    />
                   </div>
                   <div className="space-y-4">
-                    <div>
-                      <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Profile Image URL</label>
-                      <input 
-                        type="text" required
-                        value={editingMember.imageUrl}
-                        onChange={(e) => setEditingMember({ ...editingMember, imageUrl: e.target.value })}
-                        className="w-full mt-1 p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Status</label>
-                        <select 
-                          value={editingMember.status}
-                          onChange={(e) => setEditingMember({ ...editingMember, status: e.target.value as 'active' })}
-                          className="w-full mt-1 p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none font-medium"
-                        >
-                          <option value="active">Active (Visible)</option>
-                          <option value="inactive">Inactive (Hidden)</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Display Order</label>
-                        <input 
-                          type="number" 
-                          value={editingMember.order}
-                          onChange={(e) => setEditingMember({ ...editingMember, order: parseInt(e.target.value) })}
-                          className="w-full mt-1 p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none font-medium"
-                        />
-                      </div>
-                    </div>
+                    <input 
+                      type="text" required
+                      value={editingMember.imageUrl}
+                      placeholder="Image URL"
+                      onChange={(e) => setEditingMember({ ...editingMember, imageUrl: e.target.value })}
+                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none"
+                    />
                     <div className="flex justify-end space-x-3 pt-4">
                       <button type="button" onClick={() => setEditingMember(null)} className="px-6 py-3 font-bold text-gray-500 hover:text-gray-800">Cancel</button>
-                      <button type="submit" className="bg-[#002B49] text-white px-8 py-3 rounded-xl font-black uppercase tracking-widest text-xs">Save Member</button>
+                      <button type="submit" disabled={isLoading} className="bg-[#002B49] text-white px-8 py-3 rounded-xl font-black uppercase tracking-widest text-xs">
+                        {isLoading ? 'Saving...' : 'Save Member'}
+                      </button>
                     </div>
                   </div>
                 </form>
@@ -198,11 +203,8 @@ const AdminDashboard: React.FC = () => {
                   <img src={member.imageUrl} className="w-16 h-16 rounded-2xl object-cover" />
                   <div className="flex-grow">
                     <h4 className="font-black text-gray-900">{member.name}</h4>
-                    <p className="text-xs font-bold text-blue-600 mb-2 uppercase tracking-tight">{member.designation}</p>
-                    <div className={`text-[9px] font-black uppercase mb-3 ${member.status === 'active' ? 'text-green-500' : 'text-gray-400'}`}>
-                      {member.status}
-                    </div>
-                    <div className="flex space-x-2">
+                    <p className="text-xs font-bold text-blue-600 uppercase tracking-tight">{member.designation}</p>
+                    <div className="flex space-x-2 mt-4">
                       <button onClick={() => setEditingMember(member)} className="text-[10px] font-black text-blue-500 uppercase tracking-widest hover:underline">Edit</button>
                       <button onClick={() => handleDeleteMember(member.id)} className="text-[10px] font-black text-red-500 uppercase tracking-widest hover:underline">Remove</button>
                     </div>

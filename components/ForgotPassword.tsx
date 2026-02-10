@@ -15,10 +15,12 @@ const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onNavigate }) => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleEmailSubmit = (e: React.FormEvent) => {
+  // Fixed: handleEmailSubmit is now async to handle the Promise returned by getUsers
+  const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    const users = authService.getUsers();
+    // Fixed: Added await for getUsers call
+    const users = await authService.getUsers();
     const userExists = users.some(u => u.email === email);
 
     if (userExists) {
@@ -44,6 +46,7 @@ const ForgotPassword: React.FC<ForgotPasswordProps> = ({ onNavigate }) => {
 
     setIsLoading(true);
     try {
+      // Fixed: Passing both email and newPassword to resetPassword (now supported by updated service signature)
       await authService.resetPassword(email, newPassword);
       setStep(3);
     } catch (err: any) {

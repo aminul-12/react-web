@@ -1,103 +1,149 @@
 
 import { User } from '../types';
-
-const USERS_DB_KEY = 'globalpath_users_db';
-const CURRENT_USER_KEY = 'globalpath_current_user';
-
-// Secure hashing using Web Crypto API
-async function hashPassword(password: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(password);
-  const hashBuffer = await window.crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
+import { supabase } from './supabaseClient';
 
 export const authService = {
-  getUsers: (): User[] => {
-    const data = localStorage.getItem(USERS_DB_KEY);
-    return data ? JSON.parse(data) : [];
+  getCurrentUser: async (): Promise<User | null> => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return null;
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', session.user.id)
+      .single();
+
+    if (!profile) return null;
+
+    return {
+      id: profile.id,
+      name: profile.name,
+      email: session.user.email || '',
+      role: profile.role || 'user',
+      createdAt: profile.created_at,
+      lastLogin: profile.last_login,
+      phone: profile.phone,
+      preferredCountry: profile.preferred_country,
+      gpa: profile.gpa,
+      ieltsScore: profile.ielts_score,
+      passport: profile.passport
+    };
   },
 
-  getCurrentUser: (): User | null => {
-    const data = localStorage.getItem(CURRENT_USER_KEY);
-    return data ? JSON.parse(data) : null;
+  // Added getUsers to fix "Property 'getUsers' does not exist" error in ForgotPassword.tsx
+  getUsers: async (): Promise<User[]> => {
+    const { data, error } = await supabase.from('profiles').select('*');
+    if (error) return [];
+    return data.map((p: any) => ({
+      id: p.id,
+      name: p.name,
+      email: p.email || '',
+      role: p.role || 'user',
+      createdAt: p.created_at,
+      lastLogin: p.last_login
+    }));
   },
 
   signup: async (name: string, email: string, password: string): Promise<User> => {
-    const users = authService.getUsers();
-    
-    if (users.find(u => u.email === email)) {
-      throw new Error('Email already registered');
-    }
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { full_name: name }
+      }
+    });
 
-    const passwordHash = await hashPassword(password);
-    const newUser: User = {
-      id: Math.random().toString(36).substr(2, 9),
+    if (error) throw error;
+    if (!data.user) throw new Error('Signup failed');
+
+    // Create profile
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .insert([
+        { 
+          id: data.user.id, 
+          name: name,
+          role: 'user',
+          created_at: new Date().toISOString()
+        }
+      ]);
+
+    if (profileError) throw profileError;
+
+    return {
+      id: data.user.id,
       name,
       email,
-      passwordHash,
       role: 'user',
       createdAt: new Date().toISOString(),
       lastLogin: new Date().toISOString()
     };
-
-    const updatedUsers = [...users, newUser];
-    localStorage.setItem(USERS_DB_KEY, JSON.stringify(updatedUsers));
-    
-    // Auto-login (omit passwordHash from storage)
-    const { passwordHash: pHash, ...userWithoutPass } = newUser;
-    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(userWithoutPass));
-    return userWithoutPass as User;
   },
 
   login: async (email: string, password: string): Promise<User> => {
-    const users = authService.getUsers();
-    const user = users.find(u => u.email === email);
-    
-    if (!user) throw new Error('Invalid email or password');
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
 
-    const incomingHash = await hashPassword(password);
-    if (user.passwordHash !== incomingHash) {
-      throw new Error('Invalid email or password');
+    if (error) throw error;
+    if (!data.user) throw new Error('Login failed');
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', data.user.id)
+      .single();
+
+    return {
+      id: data.user.id,
+      name: profile?.name || data.user.user_metadata.full_name || 'Student',
+      email: data.user.email || '',
+      role: profile?.role || 'user',
+      createdAt: profile?.created_at || new Date().toISOString(),
+      lastLogin: new Date().toISOString(),
+      phone: profile?.phone,
+      preferredCountry: profile?.preferred_country,
+      gpa: profile?.gpa,
+      ieltsScore: profile?.ielts_score,
+      passport: profile?.passport
+    };
+  },
+
+  logout: async () => {
+    await supabase.auth.signOut();
+  },
+
+  updateProfile: async (updatedData: Partial<User>): Promise<User | null> => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return null;
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        name: updatedData.name,
+        phone: updatedData.phone,
+        preferred_country: updatedData.preferredCountry,
+        gpa: updatedData.gpa,
+        ielts_score: updatedData.ieltsScore,
+        passport: updatedData.passport
+      })
+      .eq('id', session.user.id);
+
+    if (error) throw error;
+    return authService.getCurrentUser();
+  },
+
+  // Updated resetPassword to accept an optional newPassword to fix parameter count error in ForgotPassword.tsx
+  resetPassword: async (email: string, newPassword?: string): Promise<void> => {
+    if (newPassword) {
+      // If newPassword is provided, update the user's password.
+      // This typically works when called within a recovery session.
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      return;
     }
-
-    // Update last login
-    user.lastLogin = new Date().toISOString();
-    localStorage.setItem(USERS_DB_KEY, JSON.stringify(users));
-
-    const { passwordHash: pHash, ...userWithoutPass } = user;
-    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(userWithoutPass));
-    return userWithoutPass as User;
-  },
-
-  resetPassword: async (email: string, newPassword: string): Promise<void> => {
-    const users = authService.getUsers();
-    const userIndex = users.findIndex(u => u.email === email);
-    
-    if (userIndex === -1) {
-      throw new Error('No user found with this email address');
-    }
-
-    const newHash = await hashPassword(newPassword);
-    users[userIndex].passwordHash = newHash;
-    localStorage.setItem(USERS_DB_KEY, JSON.stringify(users));
-  },
-
-  logout: () => {
-    localStorage.removeItem(CURRENT_USER_KEY);
-  },
-
-  updateProfile: (updatedData: Partial<User>): User | null => {
-    const currentUser = authService.getCurrentUser();
-    if (!currentUser) return null;
-
-    const users = authService.getUsers();
-    const updatedUsers = users.map(u => u.id === currentUser.id ? { ...u, ...updatedData } : u);
-    
-    const updatedUser = { ...currentUser, ...updatedData };
-    localStorage.setItem(USERS_DB_KEY, JSON.stringify(updatedUsers));
-    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(updatedUser));
-    return updatedUser;
+    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    if (error) throw error;
   }
 };

@@ -19,17 +19,36 @@ import OurTeam from './components/OurTeam';
 import ContactUs from './components/ContactUs';
 import VisaGuidance from './components/VisaGuidance';
 import { authService } from './services/authService';
+import { supabase } from './services/supabaseClient';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>(View.HOME);
   const [user, setUser] = useState<User | null>(null);
   const [viewContext, setViewContext] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check for existing session
-    const savedUser = authService.getCurrentUser();
-    if (savedUser) setUser(savedUser);
-    
+    const initializeSession = async () => {
+      const currentUser = await authService.getCurrentUser();
+      setUser(currentUser);
+      setIsLoading(false);
+    };
+
+    initializeSession();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session) {
+        const currentUser = await authService.getCurrentUser();
+        setUser(currentUser);
+      } else {
+        setUser(null);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
     window.scrollTo(0, 0);
   }, [currentView]);
 
@@ -47,13 +66,21 @@ const App: React.FC = () => {
     setUser(updatedUser);
   };
 
-  const handleLogout = () => {
-    authService.logout();
+  const handleLogout = async () => {
+    await authService.logout();
     setUser(null);
     handleNavigate(View.HOME);
   };
 
   const renderView = () => {
+    if (isLoading) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-white">
+          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+        </div>
+      );
+    }
+
     switch (currentView) {
       case View.HOME:
         return <Home onNavigate={handleNavigate} />;
@@ -64,7 +91,8 @@ const App: React.FC = () => {
       case View.AI_ADVISOR:
         return <AIAdvisor initialContext={viewContext} />;
       case View.ADMIN:
-        return <AdminDashboard />;
+        // Role check for security
+        return user?.role === 'admin' ? <AdminDashboard /> : <Auth onAuthSuccess={handleAuthSuccess} onNavigate={handleNavigate} />;
       case View.DOCS:
         return <Documentation />;
       case View.ELIGIBILITY:
@@ -107,7 +135,6 @@ const App: React.FC = () => {
       </main>
       <Footer onNavigate={handleNavigate} />
       
-      {/* Sylhet WhatsApp Desk - Student Built Project */}
       <a 
         href="https://wa.me/8801306466265" 
         target="_blank" 
