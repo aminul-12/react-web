@@ -116,6 +116,7 @@ export interface University {
   funding: string;
   website: string;
   usp: string;
+  mscRequirements: string[];
 }
 
 export interface Scholarship {

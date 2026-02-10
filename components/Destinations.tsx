@@ -202,6 +202,22 @@ const Destinations: React.FC = () => {
                                 </section>
 
                                 <section>
+                                    <h5 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-6 border-b pb-2">MSc Admission Requirements</h5>
+                                    <div className="bg-gray-50 rounded-3xl p-8 border border-gray-100">
+                                        <ul className="space-y-4">
+                                            {selectedUni.mscRequirements.map((req, i) => (
+                                                <li key={i} className="flex items-start">
+                                                    <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mr-4 mt-0.5 shrink-0">
+                                                        <i className="fas fa-check text-[10px]"></i>
+                                                    </div>
+                                                    <span className="text-gray-700 font-medium">{req}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                </section>
+
+                                <section>
                                     <h5 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-6 border-b pb-2">Academic Benchmarks</h5>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                                         <div className="bg-gray-50 p-6 rounded-3xl border border-gray-100">
