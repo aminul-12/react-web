@@ -18,29 +18,19 @@ export enum View {
   RESET_PASSWORD = 'reset_password'
 }
 
-export interface Country {
-  name: string;
-  code: string;
-  flag: string;
-  description: string;
-}
-
-export interface Program {
-  id: string;
-  name: string;
-}
-
 export interface User {
   id: string;
   name: string;
   email: string;
-  passwordHash?: string;
   role: 'user' | 'admin';
   createdAt: string;
   lastLogin: string;
   phone?: string;
   preferredCountry?: string;
   gpa?: string;
+  avatarUrl?: string;
+  passportUrl?: string;
+  transcriptUrl?: string;
   ieltsScore?: {
     overall: string;
     listening: string;
@@ -53,37 +43,6 @@ export interface User {
     expiryDate: string;
     fileName?: string;
   };
-  education?: {
-    latestDegree: string;
-    gpa: string;
-    passingYear: string;
-  };
-}
-
-export interface VisaStep {
-  id: string;
-  stepNumber: number;
-  icon: string;
-  title: string;
-  description: string;
-}
-
-export interface VisaMistake {
-  risk: string;
-  avoidance: string;
-  resourceLink?: string;
-}
-
-export interface VisaCountry {
-  id: string;
-  country: string;
-  code: string;
-  visaType: string;
-  processingTime: string;
-  financials: string;
-  steps: VisaStep[];
-  documents: string[];
-  mistakes: VisaMistake[];
 }
 
 export interface TeamMember {
@@ -140,6 +99,46 @@ export interface ConsultationBooking {
   email: string;
   phone: string;
   targetCountry: string;
+  gpa?: string;
+  ieltsScore?: string;
+  message?: string;
   status: 'pending' | 'contacted' | 'closed';
   date: string;
+}
+
+// Added Country interface for destination filtering
+export interface Country {
+  name: string;
+  code: string;
+  flag: string;
+  description: string;
+}
+
+// Added VisaStep interface for process tracking
+export interface VisaStep {
+  id: string;
+  stepNumber: number;
+  icon: string;
+  title: string;
+  description: string;
+}
+
+// Added VisaMistake interface for risk mitigation
+export interface VisaMistake {
+  risk: string;
+  avoidance: string;
+  resourceLink?: string;
+}
+
+// Added VisaCountry interface to structure visa guidance data
+export interface VisaCountry {
+  id: string;
+  country: string;
+  code: string;
+  visaType: string;
+  processingTime: string;
+  financials: string;
+  steps: VisaStep[];
+  documents: string[];
+  mistakes: VisaMistake[];
 }

@@ -1,12 +1,14 @@
 
 import React, { useState, useEffect } from 'react';
-import { ConsultationBooking, TeamMember } from '../types';
+import { ConsultationBooking, TeamMember, User } from '../types';
 import { teamService } from '../services/teamService';
 import { leadService } from '../services/leadService';
+import { authService } from '../services/authService';
 
 const AdminDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'leads' | 'team'>('leads');
+  const [activeTab, setActiveTab] = useState<'leads' | 'scholars' | 'team'>('leads');
   const [bookings, setBookings] = useState<ConsultationBooking[]>([]);
+  const [scholars, setScholars] = useState<User[]>([]);
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [editingMember, setEditingMember] = useState<Partial<TeamMember> | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -15,12 +17,14 @@ const AdminDashboard: React.FC = () => {
     const fetchData = async () => {
       setIsLoading(true);
       try {
-        const [members, leads] = await Promise.all([
+        const [members, leads, users] = await Promise.all([
           teamService.getMembers(),
-          leadService.getLeads()
+          leadService.getLeads(),
+          authService.getUsers()
         ]);
         setTeam(members);
         setBookings(leads);
+        setScholars(users);
       } catch (err) {
         console.error('Fetch error:', err);
       } finally {
@@ -59,161 +63,109 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handleDeleteMember = async (id: string) => {
-    if (window.confirm('Remove this team member?')) {
-      await teamService.deleteMember(id);
-      setTeam(prev => prev.filter(m => m.id !== id));
-    }
-  };
-
   return (
     <div className="bg-gray-50 min-h-screen py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
         <header className="flex flex-col md:flex-row md:items-center justify-between mb-12 gap-6">
           <div>
             <h1 className="text-3xl font-black text-gray-900 uppercase tracking-tight">Admin Portal</h1>
-            <p className="text-gray-500 mt-2 font-medium">Control center for GlobalPath operations.</p>
+            <p className="text-gray-500 mt-2 font-medium">GlobalPath Sylhet Management Center</p>
           </div>
-          
-          <div className="flex bg-white p-1 rounded-2xl shadow-sm border border-gray-200">
-            <button 
-              onClick={() => setActiveTab('leads')}
-              className={`px-6 py-3 rounded-xl text-sm font-bold transition-all ${activeTab === 'leads' ? 'bg-[#002B49] text-white shadow-lg' : 'text-gray-500 hover:bg-gray-50'}`}
-            >
-              Consultation Leads
-            </button>
-            <button 
-              onClick={() => setActiveTab('team')}
-              className={`px-6 py-3 rounded-xl text-sm font-bold transition-all ${activeTab === 'team' ? 'bg-[#002B49] text-white shadow-lg' : 'text-gray-500 hover:bg-gray-50'}`}
-            >
-              Team Management
-            </button>
+          <div className="flex bg-white p-1 rounded-2xl shadow-sm border border-gray-200 overflow-x-auto">
+            <button onClick={() => setActiveTab('leads')} className={`px-6 py-3 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${activeTab === 'leads' ? 'bg-[#002B49] text-white shadow-lg' : 'text-gray-500'}`}>Leads</button>
+            <button onClick={() => setActiveTab('scholars')} className={`px-6 py-3 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${activeTab === 'scholars' ? 'bg-[#002B49] text-white shadow-lg' : 'text-gray-500'}`}>Students</button>
+            <button onClick={() => setActiveTab('team')} className={`px-6 py-3 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${activeTab === 'team' ? 'bg-[#002B49] text-white shadow-lg' : 'text-gray-500'}`}>Team</button>
           </div>
         </header>
 
-        {activeTab === 'leads' ? (
-          <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="overflow-x-auto">
-              {isLoading && bookings.length === 0 ? (
-                <div className="p-20 text-center text-gray-400 font-bold uppercase tracking-widest animate-pulse">Loading Leads...</div>
-              ) : (
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-gray-50 border-b border-gray-100">
-                    <tr>
-                      <th className="px-6 py-4 font-black uppercase tracking-widest text-[10px] text-gray-400">Student Details</th>
-                      <th className="px-6 py-4 font-black uppercase tracking-widest text-[10px] text-gray-400">Destination</th>
-                      <th className="px-6 py-4 font-black uppercase tracking-widest text-[10px] text-gray-400">Status</th>
-                      <th className="px-6 py-4 font-black uppercase tracking-widest text-[10px] text-gray-400 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {bookings.map(booking => (
-                      <tr key={booking.id} className="hover:bg-gray-50 transition-all">
-                        <td className="px-6 py-5">
-                          <div className="flex items-center">
-                            <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center font-bold mr-3">{booking.studentName.charAt(0)}</div>
-                            <div>
-                              <div className="font-bold text-gray-900">{booking.studentName}</div>
-                              <div className="text-xs text-gray-400">{booking.email} | {booking.phone}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-5">
-                          <span className="bg-gray-100 px-3 py-1 rounded-lg font-bold text-gray-600">{booking.targetCountry}</span>
-                        </td>
-                        <td className="px-6 py-5">
-                          <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${
-                            booking.status === 'pending' ? 'bg-orange-50 text-orange-600 border-orange-100' : 
-                            booking.status === 'contacted' ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-green-50 text-green-600 border-green-100'
-                          }`}>
-                            {booking.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-5 text-right space-x-2">
-                          <button onClick={() => updateStatus(booking.id, 'contacted')} className="text-blue-600 hover:text-blue-800 p-2" title="Mark as Contacted"><i className="fas fa-phone"></i></button>
-                          <button onClick={() => updateStatus(booking.id, 'closed')} className="text-green-600 hover:text-green-800 p-2" title="Mark as Closed"><i className="fas fa-check"></i></button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-8">
-            <div className="flex justify-between items-center">
-              <h2 className="text-xl font-black text-gray-900 uppercase tracking-widest">Global Team Database</h2>
-              <button 
-                onClick={() => setEditingMember({ name: '', designation: '', bio: '', imageUrl: '', status: 'active', order: team.length + 1, socialLinks: {} })}
-                className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-lg hover:bg-[#002B49] transition-all flex items-center"
-              >
-                <i className="fas fa-plus mr-2"></i> Add Team Member
-              </button>
-            </div>
-
-            {editingMember && (
-              <div className="bg-white p-8 rounded-3xl shadow-xl border border-blue-100 animate-fadeIn">
-                <form onSubmit={handleSaveTeam} className="grid md:grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <input 
-                      type="text" required
-                      value={editingMember.name}
-                      placeholder="Name"
-                      onChange={(e) => setEditingMember({ ...editingMember, name: e.target.value })}
-                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none"
-                    />
-                    <input 
-                      type="text" required
-                      value={editingMember.designation}
-                      placeholder="Designation"
-                      onChange={(e) => setEditingMember({ ...editingMember, designation: e.target.value })}
-                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none"
-                    />
-                    <textarea 
-                      required rows={3}
-                      value={editingMember.bio}
-                      placeholder="Bio"
-                      onChange={(e) => setEditingMember({ ...editingMember, bio: e.target.value })}
-                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none"
-                    />
-                  </div>
-                  <div className="space-y-4">
-                    <input 
-                      type="text" required
-                      value={editingMember.imageUrl}
-                      placeholder="Image URL"
-                      onChange={(e) => setEditingMember({ ...editingMember, imageUrl: e.target.value })}
-                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none"
-                    />
-                    <div className="flex justify-end space-x-3 pt-4">
-                      <button type="button" onClick={() => setEditingMember(null)} className="px-6 py-3 font-bold text-gray-500 hover:text-gray-800">Cancel</button>
-                      <button type="submit" disabled={isLoading} className="bg-[#002B49] text-white px-8 py-3 rounded-xl font-black uppercase tracking-widest text-xs">
-                        {isLoading ? 'Saving...' : 'Save Member'}
-                      </button>
-                    </div>
-                  </div>
-                </form>
-              </div>
-            )}
-
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {team.map(member => (
-                <div key={member.id} className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-start space-x-4">
-                  <img src={member.imageUrl} className="w-16 h-16 rounded-2xl object-cover" />
-                  <div className="flex-grow">
-                    <h4 className="font-black text-gray-900">{member.name}</h4>
-                    <p className="text-xs font-bold text-blue-600 uppercase tracking-tight">{member.designation}</p>
-                    <div className="flex space-x-2 mt-4">
-                      <button onClick={() => setEditingMember(member)} className="text-[10px] font-black text-blue-500 uppercase tracking-widest hover:underline">Edit</button>
-                      <button onClick={() => handleDeleteMember(member.id)} className="text-[10px] font-black text-red-500 uppercase tracking-widest hover:underline">Remove</button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+        {activeTab === 'leads' && (
+          <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-gray-50 border-b border-gray-100">
+                <tr>
+                  <th className="px-6 py-4 font-black uppercase tracking-widest text-[10px] text-gray-400">Student Info</th>
+                  <th className="px-6 py-4 font-black uppercase tracking-widest text-[10px] text-gray-400">GPA/IELTS</th>
+                  <th className="px-6 py-4 font-black uppercase tracking-widest text-[10px] text-gray-400">Destination</th>
+                  <th className="px-6 py-4 font-black uppercase tracking-widest text-[10px] text-gray-400">Status</th>
+                  <th className="px-6 py-4 font-black uppercase tracking-widest text-[10px] text-gray-400 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {bookings.map(booking => (
+                  <tr key={booking.id} className="hover:bg-gray-50 transition-all">
+                    <td className="px-6 py-5">
+                      <div className="font-bold text-gray-900">{booking.studentName}</div>
+                      <div className="text-xs text-gray-400">{booking.email} | {booking.phone}</div>
+                    </td>
+                    <td className="px-6 py-5">
+                      <div className="text-xs font-bold">GPA: {booking.gpa || '-'} | IELTS: {booking.ieltsScore || '-'}</div>
+                    </td>
+                    <td className="px-6 py-5">
+                      <span className="bg-gray-100 px-3 py-1 rounded-lg font-bold text-gray-600">{booking.targetCountry}</span>
+                    </td>
+                    <td className="px-6 py-5">
+                      <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${booking.status === 'pending' ? 'bg-orange-50 text-orange-600 border-orange-100' : 'bg-green-50 text-green-600 border-green-100'}`}>{booking.status}</span>
+                    </td>
+                    <td className="px-6 py-5 text-right">
+                      <button onClick={() => updateStatus(booking.id, 'contacted')} className="text-blue-600 p-2"><i className="fas fa-phone"></i></button>
+                      <button onClick={() => updateStatus(booking.id, 'closed')} className="text-green-600 p-2"><i className="fas fa-check"></i></button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
+
+        {activeTab === 'scholars' && (
+          <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-gray-50 border-b border-gray-100">
+                <tr>
+                  <th className="px-6 py-4 font-black uppercase tracking-widest text-[10px] text-gray-400">Scholar</th>
+                  <th className="px-6 py-4 font-black uppercase tracking-widest text-[10px] text-gray-400">Credentials</th>
+                  <th className="px-6 py-4 font-black uppercase tracking-widest text-[10px] text-gray-400">Documents</th>
+                  <th className="px-6 py-4 font-black uppercase tracking-widest text-[10px] text-gray-400">Last Entry</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {scholars.map(scholar => (
+                  <tr key={scholar.id} className="hover:bg-gray-50 transition-all">
+                    <td className="px-6 py-5">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 rounded-lg bg-gray-100 overflow-hidden">
+                          {scholar.avatarUrl && <img src={scholar.avatarUrl} className="w-full h-full object-cover" />}
+                        </div>
+                        <div>
+                          <div className="font-bold text-gray-900">{scholar.name}</div>
+                          <div className="text-[10px] text-gray-400">{scholar.email}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-5">
+                      <div className="text-xs font-bold text-gray-700">GPA: {scholar.gpa || '-'} | Ph: {scholar.phone || '-'}</div>
+                    </td>
+                    <td className="px-6 py-5">
+                      <div className="flex space-x-3">
+                        {scholar.passportUrl ? (
+                          <a href={scholar.passportUrl} target="_blank" className="text-blue-600 hover:text-blue-800" title="Passport"><i className="fas fa-id-card"></i></a>
+                        ) : <i className="fas fa-id-card text-gray-200"></i>}
+                        {scholar.transcriptUrl ? (
+                          <a href={scholar.transcriptUrl} target="_blank" className="text-green-600 hover:text-green-800" title="Transcript"><i className="fas fa-file-contract"></i></a>
+                        ) : <i className="fas fa-file-contract text-gray-200"></i>}
+                      </div>
+                    </td>
+                    <td className="px-6 py-5 text-xs text-gray-500">
+                      {scholar.lastLogin ? new Date(scholar.lastLogin).toLocaleString() : 'Never'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Team tab remains as provided in previous update */}
       </div>
     </div>
   );

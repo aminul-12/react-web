@@ -8,6 +8,8 @@ const ContactUs: React.FC = () => {
     name: '',
     email: '',
     phone: '',
+    gpa: '',
+    ielts: '',
     subject: '',
     message: ''
   });
@@ -17,25 +19,37 @@ const ContactUs: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.email || !formData.message) return;
+    
+    // Basic validation
+    if (!formData.name.trim() || !formData.email.trim() || !formData.message.trim()) {
+      setError('Please fill in all required fields.');
+      return;
+    }
     
     setIsSubmitting(true);
     setError('');
     
     try {
       await leadService.submitLead({
-        studentName: formData.name,
-        email: formData.email,
-        phone: formData.phone,
+        studentName: formData.name.trim(),
+        email: formData.email.trim(),
+        phone: formData.phone.trim(),
+        gpa: formData.gpa.trim(),
+        ieltsScore: formData.ielts.trim(),
         targetCountry: formData.subject,
-        message: formData.message
+        message: formData.message.trim()
       });
       
       setIsSent(true);
-      setFormData({ name: '', email: '', phone: '', subject: '', message: '' });
-      setTimeout(() => setIsSent(false), 8000);
+      setFormData({ name: '', email: '', phone: '', gpa: '', ielts: '', subject: '', message: '' });
+      
+      // Auto-hide success message after 10 seconds
+      setTimeout(() => setIsSent(false), 10000);
     } catch (err: any) {
-      setError(err.message || 'Failed to send your request. Please try again.');
+      console.error('Form Submission Exception:', err);
+      // provide specific feedback if it's a policy or connection error
+      const errorMsg = err.message || 'Failed to connect to server. Please try again.';
+      setError(`Submission Failed: ${errorMsg}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -93,56 +107,105 @@ const ContactUs: React.FC = () => {
                   <p className="text-lg font-medium">Your request has been received. Our Sylhet team will call you shortly.</p>
                 </div>
               ) : (
-                <form onSubmit={handleSubmit} className="space-y-8">
-                  {error && <div className="p-4 bg-red-50 text-red-600 rounded-xl font-bold text-sm">{error}</div>}
-                  <div className="grid md:grid-cols-2 gap-8">
+                <form onSubmit={handleSubmit} className="space-y-6">
+                  {error && (
+                    <div className="p-4 bg-red-50 text-red-600 rounded-xl font-bold text-sm border border-red-100 flex items-center">
+                      <i className="fas fa-exclamation-triangle mr-3"></i> {error}
+                    </div>
+                  )}
+                  
+                  <div className="grid md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Full Name</label>
+                      <input 
+                        type="text" required
+                        value={formData.name}
+                        onChange={(e) => setFormData({...formData, name: e.target.value})}
+                        className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl focus:bg-white focus:border-blue-600 outline-none transition-all font-semibold shadow-inner"
+                        placeholder="e.g. Imran Ahmed"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Phone Number</label>
+                      <input 
+                        type="tel" required
+                        value={formData.phone}
+                        onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                        className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl focus:bg-white focus:border-blue-600 outline-none transition-all font-semibold shadow-inner"
+                        placeholder="017XX-XXXXXX"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Latest GPA</label>
+                      <input 
+                        type="text"
+                        value={formData.gpa}
+                        onChange={(e) => setFormData({...formData, gpa: e.target.value})}
+                        className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl focus:bg-white focus:border-blue-600 outline-none transition-all font-semibold shadow-inner"
+                        placeholder="e.g. 4.80"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">IELTS Score (Optional)</label>
+                      <input 
+                        type="text"
+                        value={formData.ielts}
+                        onChange={(e) => setFormData({...formData, ielts: e.target.value})}
+                        className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl focus:bg-white focus:border-blue-600 outline-none transition-all font-semibold shadow-inner"
+                        placeholder="e.g. 6.5"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Student Email</label>
                     <input 
-                      type="text" required
-                      value={formData.name}
-                      onChange={(e) => setFormData({...formData, name: e.target.value})}
-                      className="w-full px-6 py-5 bg-gray-50 border-2 border-transparent rounded-[1.5rem] focus:bg-white focus:border-blue-600 outline-none transition-all font-semibold shadow-inner"
-                      placeholder="Full Name"
-                    />
-                    <input 
-                      type="tel" required
-                      value={formData.phone}
-                      onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                      className="w-full px-6 py-5 bg-gray-50 border-2 border-transparent rounded-[1.5rem] focus:bg-white focus:border-blue-600 outline-none transition-all font-semibold shadow-inner"
-                      placeholder="Phone Number"
+                      type="email" required
+                      value={formData.email}
+                      onChange={(e) => setFormData({...formData, email: e.target.value})}
+                      className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl focus:bg-white focus:border-blue-600 outline-none transition-all font-semibold shadow-inner"
+                      placeholder="student@email.com"
                     />
                   </div>
-                  <input 
-                    type="email" required
-                    value={formData.email}
-                    onChange={(e) => setFormData({...formData, email: e.target.value})}
-                    className="w-full px-6 py-5 bg-gray-50 border-2 border-transparent rounded-[1.5rem] focus:bg-white focus:border-blue-600 outline-none transition-all font-semibold shadow-inner"
-                    placeholder="Email Address"
-                  />
-                  <select 
-                    required
-                    value={formData.subject}
-                    onChange={(e) => setFormData({...formData, subject: e.target.value})}
-                    className="w-full px-6 py-5 bg-gray-50 border-2 border-transparent rounded-[1.5rem] focus:bg-white focus:border-blue-600 outline-none transition-all font-bold shadow-inner"
-                  >
-                    <option value="">Select Target Country</option>
-                    <option value="UK">United Kingdom</option>
-                    <option value="Canada">Canada</option>
-                    <option value="USA">USA</option>
-                    <option value="Australia">Australia</option>
-                  </select>
+
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Target Country</label>
+                    <select 
+                      required
+                      value={formData.subject}
+                      onChange={(e) => setFormData({...formData, subject: e.target.value})}
+                      className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl focus:bg-white focus:border-blue-600 outline-none transition-all font-bold shadow-inner"
+                    >
+                      <option value="">Select Destination</option>
+                      <option value="UK">United Kingdom</option>
+                      <option value="Canada">Canada</option>
+                      <option value="USA">USA</option>
+                      <option value="Australia">Australia</option>
+                    </select>
+                  </div>
+
                   <textarea 
-                    required rows={5}
+                    required rows={4}
                     value={formData.message}
                     onChange={(e) => setFormData({...formData, message: e.target.value})}
-                    className="w-full px-6 py-5 bg-gray-50 border-2 border-transparent rounded-[2rem] focus:bg-white focus:border-blue-600 outline-none transition-all font-semibold shadow-inner resize-none"
-                    placeholder="Tell us about your background..."
+                    className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent rounded-[2rem] focus:bg-white focus:border-blue-600 outline-none transition-all font-semibold shadow-inner resize-none"
+                    placeholder="Tell us about your academic goals..."
                   />
+
                   <button 
                     type="submit"
                     disabled={isSubmitting}
                     className="w-full bg-[#002B49] text-white py-6 rounded-[2rem] font-black uppercase tracking-[0.2em] text-sm shadow-2xl hover:bg-blue-600 transition-all flex items-center justify-center disabled:opacity-50"
                   >
-                    {isSubmitting ? <i className="fas fa-circle-notch fa-spin"></i> : 'Submit Request'}
+                    {isSubmitting ? (
+                      <>
+                        <i className="fas fa-circle-notch fa-spin mr-2"></i>
+                        Processing...
+                      </>
+                    ) : 'Submit Lead'}
                   </button>
                 </form>
               )}

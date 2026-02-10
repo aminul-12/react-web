@@ -30,11 +30,14 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess, onNavigate }) => {
         if (formData.password.length < 6) {
           throw new Error('Password must be at least 6 characters');
         }
+        console.log('Initiating signup for:', formData.email);
         const user = await authService.signup(formData.name, formData.email, formData.password);
+        console.log('Signup successful, navigating to dashboard');
         onAuthSuccess(user);
       }
     } catch (err: any) {
-      setError(err.message);
+      console.error('Authentication Error:', err);
+      setError(err.message || 'An unexpected error occurred during authentication.');
     } finally {
       setIsLoading(false);
     }
